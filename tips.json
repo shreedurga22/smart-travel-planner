@@ -1,0 +1,12 @@
+{
+  "London,uk": {
+    "bestTime": "May-Sep",
+    "food": ["Fish & Chips", "English Breakfast", "Afternoon Tea"],
+    "topAttractions": ["Big Ben", "London Eye", "British Museum"]
+  },
+  "Paris,fr": {
+    "bestTime": "Apr-Jun, Sep-Oct",
+    "food": ["Croissant", "Baguette", "Escargot"],
+    "topAttractions": ["Eiffel Tower", "Louvre Museum", "Notre-Dame"]
+  }
+}
