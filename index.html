@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Travel Explorer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f4f4f4;color:#222;}
+header{background:#0ea5a4;color:white;padding:1rem;text-align:center;}
+main{max-width:1000px;margin:20px auto;padding:10px;}
+.search{display:flex;gap:10px;margin-bottom:20px;}
+input{flex:1;padding:10px;border-radius:6px;border:1px solid #ccc;}
+button{padding:10px 16px;border:none;border-radius:6px;background:#0ea5a4;color:white;cursor:pointer;}
+.hero-photo{width:100%;height:300px;border-radius:12px;background-size:cover;background-position:center;margin-bottom:15px;}
+.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;}
+.thumb{height:100px;border-radius:8px;background-size:cover;background-position:center;cursor:pointer;}
+.card{background:white;padding:15px;border-radius:10px;margin-top:20px;box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+.weather{display:flex;justify-content:space-between;align-items:center;}
+.temp{font-size:32px;font-weight:bold;}
+#map{height:300px;border-radius:10px;margin-top:10px;}
+.nearby{margin-top:20px;}
+.place{padding:8px;border-bottom:1px solid #eee;}
+.place strong{color:#0ea5a4;}
+.tips{margin-top:20px;background:#e0f2f1;padding:15px;border-radius:10px;}
+</style>
+</head>
+<body>
+<header>
+<h1>🌍 Travel Explorer</h1>
+<p>Find photos, weather, map, nearby food & hotels, and local tips</p>
+</header>
+<main>
+<div class="search">
+<input id="q" type="text" placeholder="Enter a city (e.g., London,uk)">
+<button id="searchBtn">Search</button>
+</div>
+
+<div id="heroPhoto" class="hero-photo"></div>
+<h2 id="placeName">Search a destination</h2>
+<p id="placeDesc">Photos, weather & local info will appear here.</p>
+
+<div class="gallery" id="gallery"></div>
+
+<div class="card">
+<h3>Weather</h3>
+<div class="weather">
+<div>
+<div id="wCity">—</div>
+<div id="wDesc" style="font-size:14px;color:gray">No data</div>
+</div>
+<div>
+<div id="wTemp" class="temp">--°C</div>
+<div id="wFeels" style="font-size:14px;color:gray">Feels like --°C</div>
+</div>
+</div>
+<p>Humidity: <span id="wHum">--%</span> | Wind: <span id="wWind">-- m/s</span> | Clouds: <span id="wCloud">--%</span></p>
+</div>
+
+<div class="card">
+<h3>Map</h3>
+<div id="map"></div>
+</div>
+
+<div class="card nearby">
+<h3>Nearby Food & Hotels</h3>
+<div id="nearbyList">—</div>
+</div>
+
+<div class="card tips">
+<h3>Local Tips</h3>
+<div id="tipsContent">—</div>
+</div>
+</main>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let map, marker;
+
+async function fetchPhotos(city){const res=await fetch(`/api/photos?place=${encodeURIComponent(city)}`);return res.json();}
+async function fetchWeather(city){const res=await fetch(`/api/weather?place=${encodeURIComponent(city)}`);return res.json();}
+async function fetchNearby(lat, lon, type){const res=await fetch(`/api/nearby?lat=${lat}&lon=${lon}&type=${type}`);return res.json();}
+async function fetchTips(city){const res=await fetch(`/api/tips?city=${encodeURIComponent(city)}`);return res.json();}
+
+function renderPhotos(data){const gallery=$("gallery"), hero=$("heroPhoto"); gallery.innerHTML=""; if(!data.results?.length){hero.style.backgroundImage="";return;} hero.style.backgroundImage=`url('${data.results[0].urls.regular}')`; data.results.forEach(p=>{const div=document.createElement("div"); div.className="thumb"; div.style.backgroundImage=`url('${p.urls.small}')`; div.addEventListener("click",()=>window.open(p.urls.full,"_blank")); gallery.appendChild(div);});}
+
+function renderWeather(data){if(!data||data.cod!==200)return; $("wCity").textContent=`${data.name}, ${data.sys?.country}`; $("wDesc").textContent=data.weather[0]?.description; $("wTemp").textContent=`${Math.round(data.main.temp)}°C`; $("wFeels").textContent=`Feels like ${Math.round(data.main.feels_like)}°C`; $("wHum").textContent=`${data.main.humidity}%`; $("wWind").textContent=`${data.wind.speed} m/s`; $("wCloud").textContent=`${data.clouds.all}%`; const lat=data.coord.lat, lon=data.coord.lon; if(!map){map=L.map("map").setView([lat,lon],12); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap contributors"}).addTo(map);} if(marker) marker.remove(); marker=L.marker([lat,lon]).addTo(map).bindPopup(data.name).openPopup(); return {lat, lon}; }
+
+function renderNearby(data){const list=$("nearbyList"); list.innerHTML=""; if(!data?.results?.length){ list.textContent="No nearby places found."; return;} data.results.slice(0,10).forEach(p=>{const div=document.createElement("div"); div.className="place"; div.innerHTML=`<strong>${p.name}</strong> - Rating: ${p.rating||"N/A"}<br>${p.vicinity||""}`; list.appendChild(div);});}
+
+function renderTips(data){const div=$("tipsContent"); if(!data||Object.keys(data).length===0){div.textContent="No tips available."; return;} div.innerHTML=`<strong>Best Time:</strong> ${data.bestTime||"—"}<br><strong>Food:</strong> ${(data.food||[]).join(", ")}<br><strong>Top Attractions:</strong> ${(data.topAttractions||[]).join(",")}`;}
+
+async function doSearch(){const city=$("q").value.trim(); if(!city) return; $("placeName").textContent=city; $("placeDesc").textContent="Loading..."; try{ const [photos,weather] = await Promise.all([fetchPhotos(city), fetchWeather(city)]); renderPhotos(photos); const coords=renderWeather(weather); if(coords){ const [nearbyFood,nearbyHotel]=await Promise.all([ fetchNearby(coords.lat, coords.lon,"restaurant"), fetchNearby(coords.lat, coords.lon,"lodging") ]); renderNearby({results:[...nearbyFood.results,...nearbyHotel.results]});} const tips=await fetchTips(city); renderTips(tips); $("placeDesc").textContent="Results updated!"; }catch(e){console.error(e); $("placeDesc").textContent="Failed to fetch data.";}}
+
+$("searchBtn").addEventListener("click",doSearch);
+$("q").addEventListener("keydown",e=>{if(e.key==="Enter")doSearch();});
+</script>
+</body>
+</html>
